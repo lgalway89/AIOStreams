@@ -5,6 +5,16 @@ export interface LastVersion {
   id: string;
   release?: string;
   service?: string;
+  /** It was the server's own copy (My Library), which resuming goes back to whatever its id. */
+  library?: boolean;
+}
+
+/** The server's own copy of a title: the My Library addon's version of a Radarr/Sonarr file. */
+export function isLibrarySource(source: SourceInfo | undefined): boolean {
+  if (!source) return false;
+  if (source.aiostreams?.addon === 'My Library') return true;
+  const text = `${source.Name ?? ''}\n${source.aiostreams?.name ?? ''}\n${source.aiostreams?.description ?? ''}`;
+  return text.includes('My Library') || text.includes('\u{1F4D2}');
 }
 
 const stored = storedMap<LastVersion | string>(
@@ -26,6 +36,7 @@ export const lastVersionOf = (source: SourceInfo): LastVersion => ({
   id: source.Id!,
   release: source.aiostreams?.release,
   service: source.aiostreams?.service,
+  ...(isLibrarySource(source) && { library: true }),
 });
 
 export function findVersion(
@@ -35,6 +46,7 @@ export function findVersion(
   if (!last) return undefined;
   return (
     sources.find((s) => s.Id === last.id) ??
+    (last.library ? sources.find(isLibrarySource) : undefined) ??
     (last.release
       ? sources.find(
           (s) =>

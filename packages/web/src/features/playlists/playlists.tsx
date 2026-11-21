@@ -14,6 +14,8 @@ import {
   LuPlus,
   LuRepeat,
   LuShuffle,
+  LuArrowDownAZ,
+  LuClock,
   LuTrash2,
 } from 'react-icons/lu';
 import { Button, IconButton } from '@aiostreams/ui/button';
@@ -31,6 +33,7 @@ import { cn } from '@aiostreams/ui/core/styling';
 import { useSession } from '@/lib/jellyfin/session';
 import { mergeRows, useNextUp, useResume } from '@/lib/jellyfin/queries';
 import {
+  byTitle,
   inPlayOrder,
   lastPlaylist,
   newSeed,
@@ -463,7 +466,9 @@ function PlaylistView({
   const runtime = duration(
     list.reduce((ms, e) => ms + ticksToMs(e.RunTimeTicks), 0)
   );
-  const ordered = inPlayOrder(list, order.seed);
+  const ordered = inPlayOrder(list, order.seed, order.az);
+  // Listed A to Z when chosen; moving a title only makes sense in the playlist's own order.
+  const shown = order.az ? byTitle(list) : list;
   const first =
     ordered.find((e) => playsOn(e) && !e.UserData?.Played) ??
     ordered.find(playable);
@@ -551,6 +556,24 @@ function PlaylistView({
               trigger={
                 <IconButton
                   data-ui="playlist-action"
+                  data-name="sort"
+                  data-active={order.az || undefined}
+                  size="sm"
+                  intent={order.az ? 'primary' : 'gray-subtle'}
+                  className="rounded-full"
+                  icon={order.az ? <LuArrowDownAZ /> : <LuClock />}
+                  aria-label={order.az ? t`A to Z` : t`Newest first`}
+                  aria-pressed={!!order.az}
+                  onClick={() => setOrder({ ...order, az: !order.az })}
+                />
+              }
+            >
+              {order.az ? <Trans>A to Z</Trans> : <Trans>Newest first</Trans>}
+            </Tooltip>
+            <Tooltip
+              trigger={
+                <IconButton
+                  data-ui="playlist-action"
                   data-name="repeat"
                   data-active={order.repeat || undefined}
                   size="sm"
@@ -626,7 +649,7 @@ function PlaylistView({
             </p>
           )}
           <div data-nav-group className="space-y-1">
-            {list.map((entry, i) => (
+            {shown.map((entry, i) => (
               <EntryRow
                 key={entry.PlaylistItemId ?? entry.Id}
                 entry={entry}
@@ -634,12 +657,12 @@ function PlaylistView({
                 loading={loadingId === entry.Id}
                 onPlay={() => onPlay(entry)}
                 onMoveUp={
-                  i > 0
+                  !order.az && i > 0
                     ? () => void edits.move(id, entry, i - 1).catch(failed)
                     : undefined
                 }
                 onMoveDown={
-                  i < list.length - 1
+                  !order.az && i < list.length - 1
                     ? () => void edits.move(id, entry, i + 1).catch(failed)
                     : undefined
                 }

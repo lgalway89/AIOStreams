@@ -1,0 +1,60 @@
+name: LG Android (unsigned)
+
+# The LG build of the Android app: built here unsigned, signed on the home server with a key that
+# never leaves it. Run by hand (gh workflow run lg-android.yml --ref lg-android -f version=...).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: versionName
+        required: true
+        default: 0.17.0-lg.1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter "@aiostreams/web..."
+      - run: pnpm -F @aiostreams/web build:standalone
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-ndk,cargo-about@0.9.2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/android/natives/rust
+      - name: Install the SDK platform, NDK and CMake
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses >/dev/null
+          pinned() { sed -n "s/^$1 = \"\(.*\)\"/\1/p" packages/android/gradle/libs.versions.toml; }
+          "$sdkmanager" --install "platforms;android-37.2" "ndk;$(pinned android-ndk)" "cmake;$(pinned android-cmake)" >/dev/null
+      - name: Build (unsigned)
+        working-directory: packages/android
+        run: |
+          code=$(( ($(date -u +%s) - 1704067200) / 60 ))
+          ./gradlew --no-configuration-cache :app:assembleRelease \
+            -Paiostreams.version="${{ inputs.version }}" -Paiostreams.versionCode="$code"
+          mkdir -p out
+          cp app/build/outputs/apk/release/*.apk out/
+          echo "{\"version\": \"${{ inputs.version }}\", \"versionCode\": $code}" > out/build.json
+          ls -la out
+      - uses: actions/upload-artifact@v7
+        with:
+          name: aiostreams-lg-unsigned-${{ inputs.version }}
+          path: packages/android/out
+          compression-level: 0

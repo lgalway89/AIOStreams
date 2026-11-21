@@ -22,6 +22,7 @@ import { useSession } from '@/lib/jellyfin/session';
 import { party } from '@/lib/party/party';
 import {
   findVersion,
+  isLibrarySource,
   lastVersions,
   playableSources,
 } from '@/lib/playback/sources';
@@ -190,13 +191,33 @@ export function VersionPickerProvider({
     const playStraight = async (
       item: BaseItemDto,
       startMs: number,
-      opts: { version?: string; replace?: boolean; playlist?: string } = {}
+      opts: {
+        version?: string;
+        replace?: boolean;
+        playlist?: string;
+        library?: boolean;
+      } = {}
     ) => {
       const { queryClient, infoOptions, playVersion } = latest.current;
       const { replace, playlist } = opts;
-      const last = opts.version
+      let last = opts.version
         ? { id: opts.version }
         : rememberedVersion(item, startMs);
+      // From a playlist: the server's own copy (My Library) at once, the list when there's none.
+      if (opts.library && !opts.version) {
+        try {
+          const info = await queryClient.fetchQuery(infoOptions(item.Id!));
+          const own = playableSources(info).find(isLibrarySource);
+          if (!own) {
+            setRequest({ item, startMs, replace, playlist });
+            return;
+          }
+          last = { id: own.Id! };
+        } catch {
+          setRequest({ item, startMs, replace, playlist });
+          return;
+        }
+      }
       // The player page finds the version itself, and lists them if it is gone.
       if (
         !currentHost().play &&
@@ -301,7 +322,10 @@ export function VersionPickerProvider({
           return;
         }
         askIfUnaired([item], () => {
-          if (
+          // Picked in a playlist, a title plays the server's own copy straight away.
+          if (playlist && !version && !opts?.held)
+            void playStraight(item, startMs, { replace, playlist, library: true });
+          else if (
             version ||
             latest.current.straight(item, startMs) !== !!opts?.held
           )

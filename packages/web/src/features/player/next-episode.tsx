@@ -21,7 +21,7 @@ import {
   listVersionsFromPlayer,
   playOn as moveOn,
 } from '@/lib/playback/session';
-import { playableSources } from '@/lib/playback/sources';
+import { isLibrarySource, playableSources } from '@/lib/playback/sources';
 import { playerUrl, requiredHeaders } from '@/lib/playback/stream';
 import { useFindDownloaded } from '@/lib/downloads';
 import {
@@ -93,6 +93,11 @@ function carryOn(
   current: SourceInfo,
   fallbackFirst: boolean
 ): SourceInfo | undefined {
+  // The server's own copy carries on in the next title's own copy.
+  if (isLibrarySource(current)) {
+    const own = sources.find(isLibrarySource);
+    if (own) return own;
+  }
   const group = current.aiostreams?.bingeGroup;
   const same = group
     ? sources.find((s) => s.aiostreams?.bingeGroup === group)

@@ -1,4 +1,5 @@
 import React from 'react';
+import { FolderMarked } from './folder-mark';
 import { t } from '@lingui/core/macro';
 import { useQueries, type UseQueryResult } from '@tanstack/react-query';
 import { cn } from '@aiostreams/ui/core/styling';
@@ -86,7 +87,7 @@ export function BadgeChip({
           className="block max-h-4 w-auto max-w-[5.5rem] object-contain"
         />
       ) : (
-        badge.label
+        <FolderMarked text={badge.label} color={badge.color ?? 'currentColor'} />
       )}
     </span>
   );

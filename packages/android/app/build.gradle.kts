@@ -32,7 +32,8 @@ android {
     namespace = "io.github.viren070.aiostreams"
 
     defaultConfig {
-        applicationId = "io.github.viren070.aiostreams"
+        // LG build: its own id, beside (not replacing) the official app.
+        applicationId = "io.github.viren070.aiostreams.lg"
         // CI names nightlies and counts builds; release-please keeps version.txt.
         versionName = providers.gradleProperty("aiostreams.version")
             .orElse(providers.fileContents(rootProject.layout.projectDirectory.file("version.txt")).asText.map(String::trim))
@@ -40,9 +41,9 @@ android {
         versionCode = providers.gradleProperty("aiostreams.versionCode").map(String::toInt).getOrElse(1)
         buildConfigField("String", "WEB_URL", "\"\"")
         val feed = providers.gradleProperty("aiostreams.updateFeed")
-            .getOrElse("https://github.com/Viren070/AIOStreams/releases/download")
+            .getOrElse("https://github.com/lgalway89/AIOStreams/releases/download")
         buildConfigField("String", "UPDATE_FEED", "\"$feed\"")
-        resValue("string", "app_name", "AIOStreams")
+        resValue("string", "app_name", "AIOStreams LG")
         val inspectable = providers.gradleProperty("aiostreams.inspectable").getOrElse("false")
         buildConfigField("boolean", "INSPECTABLE", inspectable)
     }

@@ -1,4 +1,5 @@
 import { plural, t } from '@lingui/core/macro';
+import { FolderMarked } from './folder-mark';
 import { Trans } from '@lingui/react/macro';
 import React from 'react';
 import { toast } from 'sonner';
@@ -578,7 +579,7 @@ export function Versions({
                       !compact && 'sm:text-base'
                     )}
                   >
-                    {source.aiostreams?.name || source.Name}
+                    <FolderMarked text={source.aiostreams?.name || source.Name || ''} />
                   </span>
                   {source.aiostreams?.description && (
                     <span
