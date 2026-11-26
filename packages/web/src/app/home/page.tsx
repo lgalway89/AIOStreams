@@ -45,8 +45,10 @@ import { CardPreviewHost } from '@/components/media/card-preview';
 import { MediaRow } from '@/components/media/media-row';
 import { ChannelCard } from '@/features/live-tv/channel-card';
 import {
+  ALL,
   FAVOURITES,
   RECENT,
+  airingAt,
   useChannelPages,
   useLiveTvShown,
   useNow,
@@ -331,30 +333,74 @@ function UpcomingRow() {
 
 const ROW_PAGE = 20;
 
-/** Favourite channels, then those played here lately, with what is on. */
+/** How often the row asks again: events come and go as channels, so what is on changes quickly. */
+const LIVE_ROW_REFRESH_MS = 2 * 60_000;
+/** Enough of the lineup to fill the row with what is on now (events come first, by start time). */
+const LINEUP_PAGE = 80;
+
+const airingNow = (channel: BaseItemDto, now: number) => {
+  const p = channel.CurrentProgram;
+  return !!p && airingAt([p], now) === p;
+};
+
+/**
+ * Favourite channels and those played here lately while they are on or coming up, then what is
+ * on now across the lineup. On a server where each event is its own channel (AIOStreams), the
+ * ones played lately have usually ended, so the row fills from what is airing instead.
+ */
 function LiveRow() {
   const enabled = useLiveTvShown(true);
+  const refetchInterval = LIVE_ROW_REFRESH_MS;
   const favourites = useChannelPages(FAVOURITES, {
     pageSize: ROW_PAGE,
     enabled,
+    refetchInterval,
   });
-  const recent = useChannelPages(RECENT, { enabled });
-  const channels = React.useMemo(() => {
+  const recent = useChannelPages(RECENT, { enabled, refetchInterval });
+  const lineup = useChannelPages(ALL, {
+    pageSize: LINEUP_PAGE,
+    enabled,
+    refetchInterval,
+  });
+  const now = useNow();
+  const mine = React.useMemo(() => {
     const seen = new Set<string>();
     return [favourites.data, recent.data]
       .flatMap((data) => data?.pages.flatMap((p) => p.Items ?? []) ?? [])
+      .filter((c) => !seen.has(c.Id!) && !!seen.add(c.Id!));
+  }, [favourites.data, recent.data]);
+  const onNow = React.useMemo(
+    () =>
+      (lineup.data?.pages[0]?.Items ?? [])
+        .filter((c) => airingNow(c, now))
+        .slice(0, ROW_PAGE),
+    [lineup.data, now]
+  );
+  const schedules = useSchedules([
+    mine.map((c) => c.Id!),
+    onNow.map((c) => c.Id!),
+  ]);
+  const channels = React.useMemo(() => {
+    const seen = new Set<string>();
+    // A favourite or recent channel stays while it is on, or has something coming up.
+    const keep = mine.filter(
+      (c) =>
+        airingNow(c, now) ||
+        (schedules.get(c.Id!) ?? []).some(
+          (p) => !!p.EndDate && Date.parse(p.EndDate) > now
+        )
+    );
+    return [...keep, ...onNow]
       .filter((c) => !seen.has(c.Id!) && !!seen.add(c.Id!))
       .slice(0, ROW_PAGE);
-  }, [favourites.data, recent.data]);
-  const schedules = useSchedules([channels.map((c) => c.Id!)]);
-  const now = useNow();
+  }, [mine, onNow, schedules, now]);
   if (!enabled) return null;
   return (
     <MediaRow
       id="live"
       title={t`Live TV`}
       shape="wide"
-      loading={favourites.isLoading || recent.isLoading}
+      loading={favourites.isLoading || recent.isLoading || lineup.isLoading}
       action={
         <Button
           size="sm"

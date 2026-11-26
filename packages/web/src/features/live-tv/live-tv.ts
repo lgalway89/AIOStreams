@@ -171,7 +171,7 @@ export function useChannelGroups(): {
 
 export function useChannelPages(
   group: string,
-  opts: { pageSize?: number; enabled?: boolean } = {}
+  opts: { pageSize?: number; enabled?: boolean; refetchInterval?: number } = {}
 ) {
   const { client, user } = useSession();
   const pageSize = opts.pageSize ?? CHANNEL_PAGE;
@@ -218,6 +218,7 @@ export function useChannelPages(
     },
     enabled: opts.enabled ?? true,
     staleTime: 5 * 60_000,
+    refetchInterval: opts.refetchInterval,
   });
 }
 
